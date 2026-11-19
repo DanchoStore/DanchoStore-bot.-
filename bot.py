@@ -1277,4 +1277,709 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-    
+    # =========================
+# ВЫКУП IPHONE
+# =========================
+
+@dp.message(F.text == "🔄 Выкуп iPhone")
+async def buyback_start(message: Message, state: FSMContext):
+    await state.clear()
+    await state.set_state(Buyback.model)
+
+    await message.answer(
+        "Напишите модель iPhone, которую хотите продать.",
+        reply_markup=cancel_keyboard(),
+    )
+
+
+@dp.message(Buyback.model, F.text == "❌ Отмена")
+@dp.message(Buyback.memory, F.text == "❌ Отмена")
+@dp.message(Buyback.condition, F.text == "❌ Отмена")
+@dp.message(Buyback.battery, F.text == "❌ Отмена")
+@dp.message(Buyback.price, F.text == "❌ Отмена")
+@dp.message(Buyback.contact, F.text == "❌ Отмена")
+async def cancel_buyback(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer(
+        "Заявка отменена.",
+        reply_markup=main_keyboard(),
+    )
+
+
+@dp.message(Buyback.model)
+async def buyback_model(message: Message, state: FSMContext):
+    await state.update_data(model=message.text)
+    await state.set_state(Buyback.memory)
+    await message.answer("Укажите объём памяти.")
+
+
+@dp.message(Buyback.memory)
+async def buyback_memory(message: Message, state: FSMContext):
+    await state.update_data(memory=message.text)
+    await state.set_state(Buyback.condition)
+    await message.answer("Опишите состояние телефона.")
+
+
+@dp.message(Buyback.condition)
+async def buyback_condition(message: Message, state: FSMContext):
+    await state.update_data(condition=message.text)
+    await state.set_state(Buyback.battery)
+    await message.answer("Укажите состояние аккумулятора в процентах.")
+
+
+@dp.message(Buyback.battery)
+async def buyback_battery(message: Message, state: FSMContext):
+    await state.update_data(battery=message.text)
+    await state.set_state(Buyback.price)
+    await message.answer("За какую сумму хотите продать телефон?")
+
+
+@dp.message(Buyback.price)
+async def buyback_price(message: Message, state: FSMContext):
+    await state.update_data(price=message.text)
+    await state.set_state(Buyback.contact)
+    await message.answer("Оставьте Telegram для связи или напишите «здесь».")
+
+
+@dp.message(Buyback.contact)
+async def buyback_contact(message: Message, state: FSMContext):
+    await state.update_data(contact=message.text)
+    data = await state.get_data()
+
+    report = (
+        "🔄 НОВАЯ ЗАЯВКА НА ВЫКУП IPHONE\n\n"
+        f"Модель: {data.get('model')}\n"
+        f"Память: {data.get('memory')}\n"
+        f"Состояние: {data.get('condition')}\n"
+        f"Аккумулятор: {data.get('battery')}\n"
+        f"Желаемая цена: {data.get('price')}\n"
+        f"Контакт: {data.get('contact')}\n"
+        f"Telegram: @{message.from_user.username or 'не указан'}\n"
+        f"ID: {message.from_user.id}"
+    )
+
+    await bot.send_message(ADMIN_ID, report)
+    await state.clear()
+
+    await message.answer(
+        "Спасибо! Заявка отправлена продавцу.",
+        reply_markup=main_keyboard(),
+    )
+
+
+# =========================
+# ДОБАВЛЕНИЕ ТОВАРА
+# =========================
+
+@dp.message(F.text == "➕ Добавить товар")
+async def add_start(message: Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    await state.clear()
+    await state.set_state(AddProduct.category)
+
+    await message.answer(
+        "Выберите категорию:",
+        reply_markup=category_keyboard(),
+    )
+
+
+@dp.message(AddProduct.category, F.text == "❌ Отмена")
+@dp.message(AddProduct.title, F.text == "❌ Отмена")
+@dp.message(AddProduct.price, F.text == "❌ Отмена")
+@dp.message(AddProduct.description, F.text == "❌ Отмена")
+@dp.message(AddProduct.link, F.text == "❌ Отмена")
+@dp.message(AddProduct.photos, F.text == "❌ Отмена")
+async def cancel_add(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer(
+        "Добавление отменено.",
+        reply_markup=admin_keyboard(),
+    )
+
+
+@dp.message(AddProduct.category)
+async def add_category(message: Message, state: FSMContext):
+    if message.text not in ("🍎 iPhone", "🤖 Android"):
+        await message.answer("Выберите категорию кнопкой.")
+        return
+
+    category = (
+        "iPhone"
+        if message.text == "🍎 iPhone"
+        else "Android"
+    )
+
+    await state.update_data(
+        category=category,
+        photos=[],
+    )
+
+    await state.set_state(AddProduct.title)
+    await message.answer("Введите название товара и память.")
+
+
+@dp.message(AddProduct.title)
+async def add_title(message: Message, state: FSMContext):
+    await state.update_data(title=message.text)
+    await state.set_state(AddProduct.price)
+    await message.answer("Введите цену в рублях. Например: 79900.")
+
+
+@dp.message(AddProduct.price)
+async def add_price(message: Message, state: FSMContext):
+    price = (message.text or "").replace(" ", "").replace(",", ".")
+
+    if not price.replace(".", "", 1).isdigit():
+        await message.answer("Введите цену числом.")
+        return
+
+    await state.update_data(price=price)
+    await state.set_state(AddProduct.description)
+    await message.answer("Введите описание и состояние товара.")
+
+
+@dp.message(AddProduct.description)
+async def add_description(message: Message, state: FSMContext):
+    await state.update_data(description=message.text or "")
+    await state.set_state(AddProduct.link)
+
+    await message.answer(
+        "Отправьте ссылку на пост в канале "
+        "или отправьте дефис -, чтобы пропустить."
+    )
+
+
+@dp.message(AddProduct.link)
+async def add_link(message: Message, state: FSMContext):
+    link = (message.text or "").strip()
+
+    if link == "-":
+        link = ""
+    elif link and not link.startswith("https://t.me/"):
+        await message.answer(
+            "Пришлите ссылку вида https://t.me/канал/123 или дефис -."
+        )
+        return
+
+    await state.update_data(link=link)
+    await state.set_state(AddProduct.photos)
+
+    await message.answer(
+        "Отправляйте фотографии по одной. Максимум 5.\n"
+        "Когда закончите, нажмите «Готово с фото».",
+        reply_markup=photos_keyboard(),
+    )
+
+
+@dp.message(AddProduct.photos, F.photo)
+async def add_photo(message: Message, state: FSMContext):
+    data = await state.get_data()
+    photos = data.get("photos", [])
+
+    if len(photos) >= 5:
+        await message.answer(
+            "Уже добавлено 5 фотографий. Нажмите «Готово с фото»."
+        )
+        return
+
+    photos.append(message.photo[-1].file_id)
+    await state.update_data(photos=photos)
+
+    await message.answer(f"Фото добавлено: {len(photos)}/5.")
+
+
+async def save_product(message: Message, state: FSMContext):
+    data = await state.get_data()
+    photos = data.get("photos", [])
+
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        cursor = await db.execute(
+            """
+            INSERT INTO products
+            (
+                category,
+                title,
+                price,
+                description,
+                link,
+                photo_file_id,
+                photo_file_ids,
+                is_sold
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+            """,
+            (
+                data["category"],
+                data["title"],
+                data["price"],
+                data["description"],
+                data["link"],
+                photos[0] if photos else "",
+                json.dumps(photos),
+            ),
+        )
+
+        product_id = cursor.lastrowid
+        await db.commit()
+
+    await state.clear()
+
+    await message.answer(
+        f"✅ Товар добавлен. Номер: {product_id}",
+        reply_markup=admin_keyboard(),
+    )
+
+
+@dp.message(
+    AddProduct.photos,
+    F.text.in_({
+        "✅ Готово с фото",
+        "⏭ Пропустить фото",
+    }),
+)
+async def finish_photos(message: Message, state: FSMContext):
+    await save_product(message, state)
+
+
+@dp.message(AddProduct.photos)
+async def wrong_photo_input(message: Message):
+    await message.answer(
+        "Отправьте фото или нажмите одну из кнопок ниже."
+    )
+
+
+# =========================
+# СПИСОК ТОВАРОВ
+# =========================
+
+@dp.message(F.text == "📋 Список товаров")
+async def admin_products(message: Message):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    products = await get_products(include_sold=True)
+
+    if not products:
+        await message.answer(
+            "Товаров пока нет.",
+            reply_markup=admin_keyboard(),
+        )
+        return
+
+    await message.answer("📋 Список товаров:")
+
+    for product in products[:50]:
+        status = (
+            "Продан"
+            if product["is_sold"]
+            else "В наличии"
+        )
+
+        text = (
+            f"Товар №{product['id']}\n"
+            f"{product['title']}\n"
+            f"Категория: {product['category']}\n"
+            f"Цена: {product['price']} ₽\n"
+            f"Статус: {status}"
+        )
+
+        await message.answer(
+            text,
+            reply_markup=product_admin_keyboard(
+                product["id"],
+                product["is_sold"],
+            ),
+        ) 
+        # =========================
+# РЕДАКТИРОВАНИЕ ТОВАРОВ
+# =========================
+
+@dp.message(F.text == "✏️ Редактировать товар")
+async def edit_start(message: Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    await state.clear()
+    await state.set_state(EditProduct.product_id)
+
+    await message.answer(
+        "Введите номер товара для редактирования.",
+        reply_markup=cancel_keyboard(),
+    )
+
+
+@dp.message(EditProduct.product_id, F.text == "❌ Отмена")
+@dp.message(EditProduct.field, F.text == "❌ Отмена")
+@dp.message(EditProduct.value, F.text == "❌ Отмена")
+async def cancel_edit(message: Message, state: FSMContext):
+    await state.clear()
+
+    await message.answer(
+        "Редактирование отменено.",
+        reply_markup=admin_keyboard(),
+    )
+
+
+@dp.message(EditProduct.product_id)
+async def edit_choose_id(message: Message, state: FSMContext):
+    if not (message.text or "").isdigit():
+        await message.answer("Введите номер товара цифрами.")
+        return
+
+    product = await get_product(int(message.text))
+
+    if not product:
+        await message.answer("Товар не найден.")
+        return
+
+    await state.update_data(product_id=int(message.text))
+    await state.set_state(EditProduct.field)
+
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="Название"),
+                KeyboardButton(text="Цена"),
+            ],
+            [
+                KeyboardButton(text="Описание"),
+                KeyboardButton(text="Ссылка"),
+            ],
+            [KeyboardButton(text="❌ Отмена")],
+        ],
+        resize_keyboard=True,
+    )
+
+    await message.answer("Что изменить?", reply_markup=keyboard)
+
+
+@dp.message(EditProduct.field)
+async def edit_choose_field(message: Message, state: FSMContext):
+    fields = {
+        "Название": "title",
+        "Цена": "price",
+        "Описание": "description",
+        "Ссылка": "link",
+    }
+
+    if message.text not in fields:
+        await message.answer("Выберите поле кнопкой.")
+        return
+
+    await state.update_data(field=fields[message.text])
+    await state.set_state(EditProduct.value)
+
+    await message.answer(
+        "Введите новое значение.",
+        reply_markup=cancel_keyboard(),
+    )
+
+
+@dp.message(EditProduct.value)
+async def edit_save(message: Message, state: FSMContext):
+    data = await state.get_data()
+
+    field = data["field"]
+    value = (message.text or "").strip()
+
+    if field == "price":
+        value = value.replace(" ", "").replace(",", ".")
+
+        if not value.replace(".", "", 1).isdigit():
+            await message.answer("Введите цену числом.")
+            return
+
+    if field == "link" and value and not value.startswith("https://t.me/"):
+        await message.answer(
+            "Ссылка должна начинаться с https://t.me/"
+        )
+        return
+
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            f"UPDATE products SET {field} = ? WHERE id = ?",
+            (value, data["product_id"]),
+        )
+        await db.commit()
+
+    await state.clear()
+
+    await message.answer(
+        "✅ Товар обновлён.",
+        reply_markup=admin_keyboard(),
+    )
+
+
+# =========================
+# УДАЛЕНИЕ ТОВАРОВ
+# =========================
+
+@dp.message(F.text == "🗑 Удалить товар")
+async def delete_start(message: Message, state: FSMContext):
+    if message.from_user.id != ADMIN_ID:
+        return
+
+    await state.clear()
+    await state.set_state(DeleteProduct.product_id)
+
+    await message.answer(
+        "Введите номер товара для удаления.",
+        reply_markup=cancel_keyboard(),
+    )
+
+
+@dp.message(DeleteProduct.product_id, F.text == "❌ Отмена")
+async def cancel_delete(message: Message, state: FSMContext):
+    await state.clear()
+
+    await message.answer(
+        "Удаление отменено.",
+        reply_markup=admin_keyboard(),
+    )
+
+
+@dp.message(DeleteProduct.product_id)
+async def delete_by_id(message: Message, state: FSMContext):
+    if not (message.text or "").isdigit():
+        await message.answer("Введите номер товара цифрами.")
+        return
+
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        cursor = await db.execute(
+            "DELETE FROM products WHERE id = ?",
+            (int(message.text),),
+        )
+
+        await db.commit()
+        deleted = cursor.rowcount
+
+    await state.clear()
+
+    await message.answer(
+        "🗑 Товар удалён."
+        if deleted
+        else "Товар с таким номером не найден.",
+        reply_markup=admin_keyboard(),
+    )
+
+
+# =========================
+# ОТМЕТКА О ПРОДАЖЕ
+# =========================
+
+@dp.callback_query(F.data.startswith("toggle:"))
+async def toggle_product(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer(
+            "Нет доступа.",
+            show_alert=True,
+        )
+        return
+
+    product_id = int(callback.data.split(":")[1])
+    product = await get_product(product_id)
+
+    if not product:
+        await callback.answer("Товар не найден.")
+        return
+
+    new_status = 0 if product["is_sold"] else 1
+
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            "UPDATE products SET is_sold = ? WHERE id = ?",
+            (new_status, product_id),
+        )
+
+        await db.commit()
+
+    await callback.message.edit_reply_markup(
+        reply_markup=product_admin_keyboard(
+            product_id,
+            new_status,
+        )
+    )
+
+    await callback.answer("Статус обновлён.")
+
+
+# =========================
+# РЕДАКТИРОВАНИЕ ИЗ КАРТОЧКИ
+# =========================
+
+@dp.callback_query(F.data.startswith("edit:"))
+async def edit_from_card(
+    callback: CallbackQuery,
+    state: FSMContext,
+):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Нет доступа.", show_alert=True)
+        return
+
+    product_id = int(callback.data.split(":")[1])
+    product = await get_product(product_id)
+
+    if not product:
+        await callback.answer("Товар не найден.")
+        return
+
+    await state.clear()
+    await state.update_data(product_id=product_id)
+    await state.set_state(EditProduct.field)
+
+    keyboard = ReplyKeyboardMarkup(
+        keyboard=[
+            [
+                KeyboardButton(text="Название"),
+                KeyboardButton(text="Цена"),
+            ],
+            [
+                KeyboardButton(text="Описание"),
+                KeyboardButton(text="Ссылка"),
+            ],
+            [KeyboardButton(text="❌ Отмена")],
+        ],
+        resize_keyboard=True,
+    )
+
+    await callback.message.answer(
+        "Что изменить?",
+        reply_markup=keyboard,
+    )
+
+    await callback.answer()
+
+
+# =========================
+# УДАЛЕНИЕ ИЗ КАРТОЧКИ
+# =========================
+
+@dp.callback_query(F.data.startswith("delete:"))
+async def delete_from_card(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        await callback.answer("Нет доступа.", show_alert=True)
+        return
+
+    product_id = int(callback.data.split(":")[1])
+
+    async with aiosqlite.connect(DATABASE_PATH) as db:
+        await db.execute(
+            "DELETE FROM products WHERE id = ?",
+            (product_id,),
+        )
+
+        await db.commit()
+
+    await callback.message.edit_text("🗑 Товар удалён.")
+    await callback.answer("Удалено.")
+
+
+# =========================
+# НЕИЗВЕСТНЫЕ СООБЩЕНИЯ
+# =========================
+
+@dp.message()
+async def fallback(message: Message):
+    if message.text and message.text.startswith("/"):
+        await message.answer(
+            "Неизвестная команда. Отправьте /start."
+        )
+        return
+
+    if message.from_user.id == ADMIN_ID:
+        await message.answer(
+            "Для управления магазином используйте /admin."
+        )
+    else:
+        await message.answer(
+            "Пожалуйста, выберите раздел в меню.",
+            reply_markup=main_keyboard(),
+        )
+
+
+# =========================
+# WEBHOOK
+# =========================
+
+async def health(request: web.Request):
+    return web.Response(
+        text="DanchoStore bot is running"
+    )
+
+
+async def on_startup(bot_instance: Bot):
+    await init_db()
+
+    webhook_url = (
+        f"https://{HOSTNAME}{WEBHOOK_PATH}"
+    )
+
+    await bot_instance.set_webhook(
+        webhook_url,
+        secret_token=WEBHOOK_SECRET,
+        allowed_updates=dp.resolve_used_update_types(),
+    )
+
+    logging.info("Webhook установлен: %s", webhook_url)
+
+
+async def on_shutdown(bot_instance: Bot):
+    await bot_instance.delete_webhook()
+
+
+# =========================
+# ЗАПУСК СЕРВЕРА
+# =========================
+
+async def main():
+    app = web.Application()
+
+    app.router.add_get("/", health)
+    app.router.add_get("/health", health)
+
+    SimpleRequestHandler(
+        dispatcher=dp,
+        bot=bot,
+        secret_token=WEBHOOK_SECRET,
+    ).register(
+        app,
+        path=WEBHOOK_PATH,
+    )
+
+    setup_application(
+        app,
+        dp,
+        bot=bot,
+    )
+
+    dp.startup.register(on_startup)
+    dp.shutdown.register(on_shutdown)
+
+    runner = web.AppRunner(app)
+    await runner.setup()
+
+    site = web.TCPSite(
+        runner,
+        "0.0.0.0",
+        PORT,
+    )
+
+    await site.start()
+
+    logging.info(
+        "DanchoStore запущен на порту %s",
+        PORT,
+    )
+
+    try:
+        await asyncio.Event().wait()
+
+    finally:
+        await runner.cleanup()
+        await bot.session.close()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
