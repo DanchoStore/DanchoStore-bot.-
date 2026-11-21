@@ -13,6 +13,7 @@ from aiogram import Bot, Dispatcher, F
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
+from aiogram.filters.state import StateFilter
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -266,12 +267,12 @@ async def back_to_main(message: Message, state: FSMContext):
     await message.answer("Главное меню.", reply_markup=main_keyboard())
 
 
-@dp.message(F.text == "🍎 iPhone")
+@dp.message(StateFilter(None), F.text == "🍎 iPhone")
 async def iphone(message: Message):
     await show_category(message, "iPhone")
 
 
-@dp.message(F.text == "🤖 Android")
+@dp.message(StateFilter(None), F.text == "🤖 Android")
 async def android(message: Message):
     await show_category(message, "Android")
 
