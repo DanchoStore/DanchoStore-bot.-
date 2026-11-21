@@ -474,9 +474,34 @@ async def save_new_product(message: Message, state: FSMContext):
     await message.answer("✅ Товар успешно добавлен.", reply_markup=admin_keyboard())
 
 
-@dp.message(AddProduct.photos, F.text.in_(["✅ Готово с фото", "⏭ Пропустить фото"]))
+@dp.message(AddProduct.photos, F.text)
 async def finish_product_photos(message: Message, state: FSMContext):
-    await save_new_product(message, state)
+    # Принимаем нажатие кнопки и обычный текст: «готово».
+    answer = (message.text or "").strip().lower()
+    accepted = {
+        "✅ готово с фото",
+        "готово с фото",
+        "готово",
+        "⏭ пропустить фото",
+        "пропустить фото",
+        "пропустить",
+    }
+
+    if answer not in accepted:
+        await message.answer(
+            "Фото приняты. Когда закончите, нажмите «✅ Готово с фото» "
+            "или напишите «готово»."
+        )
+        return
+
+    try:
+        await save_new_product(message, state)
+    except Exception:
+        logger.exception("Ошибка при сохранении товара")
+        await message.answer(
+            "Не удалось сохранить товар. Ошибка записана в журнал Render. "
+            "Попробуйте ещё раз или пришлите мне лог."
+        )
 
 
 # ------------------------- СПИСОК ТОВАРОВ -------------------------
