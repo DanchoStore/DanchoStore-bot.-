@@ -692,10 +692,10 @@ async def health(request: web.Request):
     return web.Response(text="DanchoStore bot is running")
 
 
-async def on_startup(bot_instance: Bot):
+async def on_startup():
     await init_db()
     webhook_url = f"https://{HOSTNAME}{WEBHOOK_PATH}"
-    await bot_instance.set_webhook(
+    await bot.set_webhook(
         webhook_url,
         secret_token=WEBHOOK_SECRET,
         allowed_updates=dp.resolve_used_update_types(),
@@ -703,8 +703,8 @@ async def on_startup(bot_instance: Bot):
     logger.info("Webhook установлен: %s", webhook_url)
 
 
-async def on_shutdown(bot_instance: Bot):
-    await bot_instance.delete_webhook()
+async def on_shutdown():
+    await bot.delete_webhook()
 
 
 async def main():
@@ -718,9 +718,9 @@ async def main():
         secret_token=WEBHOOK_SECRET,
     ).register(app, path=WEBHOOK_PATH)
 
-    setup_application(app, dp, bot=bot)
     dp.startup.register(on_startup)
     dp.shutdown.register(on_shutdown)
+    setup_application(app, dp, bot=bot)
 
     runner = web.AppRunner(app)
     await runner.setup()
