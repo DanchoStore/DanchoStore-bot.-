@@ -19,7 +19,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import (
     Message, CallbackQuery, KeyboardButton, ReplyKeyboardMarkup,
-    InlineKeyboardButton, InlineKeyboardMarkup,
+    InlineKeyboardButton, InlineKeyboardMarkup, InputMediaPhoto,
 )
 from aiogram.webhook.aiohttp_server import SimpleRequestHandler, setup_application
 
@@ -210,6 +210,7 @@ async def send_product(message: Message, product):
         photo_ids = json.loads(product.get("photo_file_ids") or "[]")
     except (TypeError, json.JSONDecodeError):
         photo_ids = []
+
     if not photo_ids and product.get("photo_file_id"):
         photo_ids = [product["photo_file_id"]]
 
@@ -219,14 +220,26 @@ async def send_product(message: Message, product):
         f"<b>Цена:</b> {product['price']} ₽\n\n"
         f"{product['description']}{sold_line}"
     )
-    keyboard = None if product["is_sold"] else product_keyboard(product)
 
+    # Telegram объединяет фотографии в один визуальный альбом.
     if photo_ids:
-        await message.answer_photo(photo_ids[0], caption=caption, reply_markup=keyboard)
-        for photo_id in photo_ids[1:]:
-            await message.answer_photo(photo_id)
+        media = []
+        for index, photo_id in enumerate(photo_ids[:10]):
+            if index == 0:
+                media.append(InputMediaPhoto(media=photo_id, caption=caption))
+            else:
+                media.append(InputMediaPhoto(media=photo_id))
+        await message.answer_media_group(media=media)
     else:
-        await message.answer(caption, reply_markup=keyboard)
+        await message.answer(caption)
+
+    # Telegram Bot API не позволяет прикрепить inline-кнопку к media group.
+    # Поэтому кнопка покупки отправляется отдельным коротким сообщением.
+    if not product["is_sold"]:
+        await message.answer(
+            "Чтобы купить этот товар, нажмите кнопку ниже:",
+            reply_markup=product_keyboard(product),
+        )
 
 
 async def show_category(message: Message, category):
